@@ -90,7 +90,7 @@ int serialConnect(char portName[]) {
 		dcbSerialParams.ByteSize = 8;
 		dcbSerialParams.StopBits = ONESTOPBIT;
 		dcbSerialParams.Parity = NOPARITY;
-		dcbSerialParams.fDtrControl = DTR_CONTROL_DISABLE; //Stops the Arduino resetting ofter connecting
+		dcbSerialParams.fDtrControl = DTR_CONTROL_DISABLE; //Stops the Arduino resetting after connecting
 	}
 
 	if (SetCommState(hSerial, &dcbSerialParams) == 0)
@@ -191,7 +191,7 @@ int main(void){
 
 	std::string line;
 	char strFile[15];//buffer for the com port name
-	std::ifstream readfile("C:\\Users\\isaac879\\Documents\\Projects\\Delta_robot\\serial_port.txt");//Location f the text file that contains the com port to connect to.
+	std::ifstream readfile("C:\\Users\\isaac879\\Documents\\Projects\\Delta_robot\\serial_port.txt");//Location of the text file that contains the com port to connect to. To connect via COM port 3 contents of the file should be: \\.\COM3
 
 	if (readfile.is_open())
 	{
@@ -204,8 +204,8 @@ int main(void){
 		std::cout << "Error: Unable to open serial_port.txt" << std::endl;
 	}
 
-	serialConnect(strFile);//Reads a text file that is used to store the com port that the Arduino is connected to.
-
+	serialConnect(strFile);//Connects to the com port that the Arduino is connected to.
+	//serialConnect("\\\\.\\com3");//Connects to com3
 	while(1) {
 		if (GetKeyState(VK_ESCAPE) & 0x8000) { //MSB is key state (1 if pressed). LSB is the toggle state
 			break;
@@ -284,7 +284,7 @@ int main(void){
 			if ((GetKeyState(VK_RBUTTON) & 0x100) != 0 && !g_click_flag) {//Toggles the gripper of the delta robot when right mouse button is clicked
 				g_click_flag = TRUE;
 				if ((GetKeyState(VK_RBUTTON) & 0x100) != 0 && g_flag) {
-					sendGripper(5);
+					sendGripper(15);
 					g_flag = !g_flag;
 				}
 				else if ((GetKeyState(VK_RBUTTON) & 0x100) != 0 && !g_flag) {
@@ -299,11 +299,11 @@ int main(void){
 
 			if (click_flag) {
 				if (p.x < 1080 && !z_flag) {
-					x = (p.x - o.x) / 3.6;//scaled chnge in mouse position (3.6 is arbitrary)
+					x = (p.x - o.x) / 3.6;//scaled change in mouse position (3.6 is arbitrary)
 					y = (p.y - o.y) / 3.6;
 				}
 				else if (p.x >= 1080 && z_flag) {//When the mouse is on the right side of the screen
-					z = -(p.y - o.y) / 6;//scaled chnge in mouse position (6 is arbitrary)
+					z = -(p.y - o.y) / 6;//scaled change in mouse position (6 is arbitrary)
 				}
 				o.x = p.x;
 				o.y = p.y;
@@ -311,7 +311,7 @@ int main(void){
 				sendCarteasian(COMMAND_CARTESIAN, x, y, z);//Sends scaled change in mouse pointer position.
 				x = 0;
 				y = 0;
-				z = 0;
+				z = 0; 
 			}
 			Sleep(15);//Give the Arduino time to process the commands
 		}
