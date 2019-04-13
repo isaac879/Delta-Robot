@@ -2,10 +2,12 @@
 #include <Iibrary.h>
 #include <math.h>
 #include <Servo.h> 
+#include <EEPROM.h>
 
 /*------------------------------------------------------------------------------------------------------------------------------------------------------*/
 
-Coordinate end_effector;
+Coordinate_f end_effector;
+Coordinate_f home_position;
 
 Servo servo1;
 Servo servo2;
@@ -15,21 +17,29 @@ Servo servo4;
 float servo_1_angle;
 float servo_2_angle;
 float servo_3_angle;
-int servo_gripper_rotation;
+int servo_gripper_rotation = 0;
 
 int servo_1_pulse_count = 0;
 int servo_2_pulse_count = 0;
 int servo_3_pulse_count = 0;
 int servo_4_pulse_count = 0;
 
-int moves_array[ARRAY_LENGTH][4];//{x, y, z, gripper}
-int moves_array_index = 0;
+float moves_array[ARRAY_LENGTH][5];//{x, y, z, gripper, delay}
+int moves_array_elements = 0;
+int current_moves_array_index = -1;
 
-int step_delay = 0; //0ms 
+int step_delay_linear = 0; //0ms 
 float step_increment = 0.4; //0.4mm
 int step_pulses = 1; //1us increments
+int step_delay_joint = 3; //0ms 
 
 String stringText = "";
+
+byte link_2 = L2;//Default value of link 2
+byte end_effector_type = 0;
+byte axis_direction = 0;                             
+float servo_offset_z = SERVO_OFFSET_Z;
+int gripper_home = 0;
 
 /*------------------------------------------------------------------------------------------------------------------------------------------------------*/
 
@@ -54,12 +64,12 @@ void attach_servos(void){
 /*------------------------------------------------------------------------------------------------------------------------------------------------------*/
 
 bool inverse_kinematics_1(float xt, float yt, float zt){
-    zt -= SERVO_OFFSET_Z;
+    zt -= servo_offset_z;
     
     float arm_end_x = xt + L3;
-    float l2p = sqrt(pow(L2, 2) - pow(yt, 2));
+    float l2p = sqrt(pow(link_2, 2) - pow(yt, 2));
     
-    float l2pAngle = asin(yt / L2);
+    float l2pAngle = asin(yt / link_2);
     if(!(abs(l2pAngle) < 0.59341194567807205615405486128613f)){ //Prevents the angle between the ball joints and link 2 (L2) going out of range.
 //        printi("ERROR: Ball joint 1 out of range: l2pAngle = ", radsToDeg(l2pAngle));
         return false;
@@ -88,16 +98,16 @@ bool inverse_kinematics_1(float xt, float yt, float zt){
 /*------------------------------------------------------------------------------------------------------------------------------------------------------*/
 
 bool inverse_kinematics_2(float xt, float yt, float zt){
-    zt -= SERVO_OFFSET_Z;
+    zt -= servo_offset_z;
     float x = xt;
     float y = yt;
     xt = x * cos(2.0943951023931954923084289221863f) - y * sin(2.0943951023931954923084289221863f); //Rotate coordinate frame 120 degrees
     yt = x * sin(2.0943951023931954923084289221863f) + y * cos(2.0943951023931954923084289221863f);
     
     float arm_end_x = xt + L3;
-    float l2p = sqrt(pow(L2, 2) - pow(yt, 2));
+    float l2p = sqrt(pow(link_2, 2) - pow(yt, 2));
     
-    float l2pAngle = asin(yt / L2);
+    float l2pAngle = asin(yt / link_2);
     if(!(abs(l2pAngle) < 0.59341194567807205615405486128613f)){ //Prevents the angle between the ball joints and link 2 (L2) going out of range.
 //        printi("ERROR: Ball joint 2 out of range: l2pAngle = ", radsToDeg(l2pAngle));        
         return false;
@@ -126,7 +136,7 @@ bool inverse_kinematics_2(float xt, float yt, float zt){
 /*------------------------------------------------------------------------------------------------------------------------------------------------------*/
 
 bool inverse_kinematics_3(float xt, float yt, float zt){
-    zt -= SERVO_OFFSET_Z;
+    zt -= servo_offset_z;
 
     float x = xt;
     float y = yt;
@@ -134,9 +144,9 @@ bool inverse_kinematics_3(float xt, float yt, float zt){
     yt = x * sin(4.1887902047863909846168578443727f) + y * cos(4.1887902047863909846168578443727f);
 
     float arm_end_x = xt + L3;
-    float l2p = sqrt(pow(L2, 2) - pow(yt, 2));
+    float l2p = sqrt(pow(link_2, 2) - pow(yt, 2));
     
-    float l2pAngle = asin(yt / L2);
+    float l2pAngle = asin(yt / link_2);
     if(!(abs(l2pAngle) < 0.59341194567807205615405486128613f)){ //Prevents the angle between the ball joints and link 2 (L2) going out of range.
 //        printi("ERROR: Ball joint 1 out of range: l2pAngle = ", radsToDeg(l2pAngle));
         return false;
@@ -165,11 +175,21 @@ bool inverse_kinematics_3(float xt, float yt, float zt){
 /*------------------------------------------------------------------------------------------------------------------------------------------------------*/
 
 bool inverse_kinematics(float xt, float yt, float zt){    
+    if(axis_direction == 1){//if axis are inverted
+        xt = -xt;
+        zt = -zt;
+    }
+    
     if(inverse_kinematics_1(xt, yt, zt) && inverse_kinematics_2(xt, yt, zt) && inverse_kinematics_3(xt, yt, zt)){ //Calculates checks the positions are valid.
-        
-        end_effector.x = xt;
+        if(axis_direction == 1){//if axis are inverted
+            end_effector.x = -xt;
+            end_effector.z = -zt;
+        }
+        else{
+            end_effector.x = xt;
+            end_effector.z = zt;
+        }
         end_effector.y = yt;
-        end_effector.z = zt;
         
         servo_1_pulse_count = round(mapNumber(servo_1_angle, SERVO_ANGLE_MIN, SERVO_ANGLE_MAX, SERVO_1_MAX, SERVO_1_MIN));
         servo_2_pulse_count = round(mapNumber(servo_2_angle, SERVO_ANGLE_MIN, SERVO_ANGLE_MAX, SERVO_2_MAX, SERVO_2_MIN));
@@ -218,7 +238,7 @@ void linear_move(float x1, float y1, float z1, float stepDist, int stepDelay){//
 
         inverse_kinematics(xInterpolation, yInterpolation, zInterpolation);//calculates the inverse kinematics for the interpolated values
         move_servos();
-        if(stepDelay > 0) delay(stepDelay);//If there is a delay then delay
+        delay(stepDelay);
     }
 }
 
@@ -273,7 +293,7 @@ void joint_move(float xt, float yt, float zt, int stepPulses, int stepDelay){//i
     servo_2_pulse_count = servo2PulseCount0 + servo2PulseDiff;
     servo_3_pulse_count = servo3PulseCount0 + servo3PulseDiff;
     move_servos();
-    if(stepDelay > 0) delay(stepDelay);//If there is a delay then delay
+    delay(stepDelay);
 }
 
 /*------------------------------------------------------------------------------------------------------------------------------------------------------*/
@@ -321,53 +341,99 @@ float get_battery_level_voltage(void){ //TODO: Calibrate the values for your bat
 /*------------------------------------------------------------------------------------------------------------------------------------------------------*/
 
 void report_status(){
-    printi("\n---Delta robot status---\n\n");
-    printi("X coordinate:\t", end_effector.x);
-    printi("Y coordinate:\t", end_effector.y);
-    printi("Z coordinate:\t", end_effector.z);
+    printi(F("\n---Delta robot status---\n\n"));
+    printi(F("X coordinate:\t"), end_effector.x);
+    printi(F("Y coordinate:\t"), end_effector.y);
+    printi(F("Z coordinate:\t"), end_effector.z);
 
-    printi("\nServo 1 angle:\t", radsToDeg(servo_1_angle));
-    printi("Servo 2 angle:\t", radsToDeg(servo_2_angle)); 
-    printi("Servo 3 angle:\t", radsToDeg(servo_3_angle));
-    printi("Servo 4 rotation:\t", servo_gripper_rotation); 
+    printi(F("\nServo 1 angle:\t"), radsToDeg(servo_1_angle));
+    printi(F("Servo 2 angle:\t"), radsToDeg(servo_2_angle)); 
+    printi(F("Servo 3 angle:\t"), radsToDeg(servo_3_angle));
+    printi(F("Servo 4 rotation:\t"), servo_gripper_rotation); 
 
-    printi("\n\nServo 1 pulses:\t", servo_1_pulse_count);
-    printi("Servo 2 pulses:\t", servo_2_pulse_count);
-    printi("Servo 3 pulses:\t", servo_3_pulse_count);
-    printi("Servo 4 pulses:\t", servo_4_pulse_count);
+    printi(F("\n\nServo 1 pulses:\t"), servo_1_pulse_count);
+    printi(F("Servo 2 pulses:\t"), servo_2_pulse_count);
+    printi(F("Servo 3 pulses:\t"), servo_3_pulse_count);
+    printi(F("Servo 4 pulses:\t"), servo_4_pulse_count);
     
-    printi("\nStep delay:\t", step_delay);
-    printi("Step inrement:\t", step_increment);
-    printi("Step pulse:\t", step_pulses);
+    printi(F("\nStep delay:\t"), step_delay_linear);
+    printi(F("Step increment:\t"), step_increment);
+    printi(F("Step pulse:\t"), step_pulses);
+    printi(F("Step delay joint:\t"), step_delay_joint);
     
-    printi("\nArray index:\t", moves_array_index);
+    printi(F("\nArray elements:\t"), moves_array_elements);
+    printi(F("Current array index:\t"), current_moves_array_index);
+    print_moves_array();
+
+    print_eeprom();
  
-    printi("\nBattery:\t", get_battery_level_voltage(), 1, "V");
-    printi("\t(", get_battery_level_percentage(), 1, "%)\n");
+    printi(F("\nBattery:\t"), get_battery_level_voltage(), 1, F("V"));
+    printi(F("\t("), get_battery_level_percentage(), 1, F("%)\n"));
 
-    printi("\nFirmware Version:\t");
+    printi(F("\nFirmware Version:\t"));
     printi(FIRMWARE_VERSION);
 }
 
 /*------------------------------------------------------------------------------------------------------------------------------------------------------*/
 
 void report_commands(void){
-    printi("\n---Delta robot commands---\n\n");
-    printi("Cartesian\t0x1+6 bytes\t(Format: 1xxyyzz)\n");
-    printi("Abslute cartesian\t0x2+6 bytes\t(Format: 2xxyyzz)\n");
-    printi("Gripper\t0x3+1 byte\t(Format: 3b)\n"); 
-    printi("Jog X-axis\tx+str\t(Format: x123.4)\n");
-    printi("Jog Y-axis\ty+str\t(Format: y123.4)\n");
-    printi("Jog Z-axis\tz+str\t(Format: z123.4)\n");
-    printi("Gripper ascii\tg+str\t(Format: g123)\n"); 
-    printi("Add position\tp\t(Format: p)\n");
-    printi("Clear array\tc\t(Format: c)\n");
-    printi("Status\ts\t(Format: s)\n");
-    printi("Set delay (ms)\td+string\t(Format: d123)\n"); 
-    printi("Set step increment (mm)\ti+str\t(Format: i123.4)\n"); 
-    printi("Set pulse increment (us)\tu+str\t(Format: u123.4)\n"); 
-    printi("Linear execute x times\te+str\t(Format: e123)\n");
-    printi("Joint execute x times\tj+str\t(Format: j123)");   
+    printi(F("\n---Delta robot commands---\n\n"));
+    printi(F("Cartesian\t0x1+6 bytes\t(Format: 1xxyyzz)\n"));
+    printi(F("Abslute cartesian\t0x2+6 bytes\t(Format: 2xxyyzz)\n"));
+    printi(F("Gripper\t0x3+1 byte\t(Format: 3b)\n")); 
+    printi(F("Jog X-axis\tx+str\t(Format: x123.4)\n"));
+    printi(F("Jog Y-axis\ty+str\t(Format: y123.4)\n"));
+    printi(F("Jog Z-axis\tz+str\t(Format: z123.4)\n"));
+    printi(F("Gripper ascii\tg+str\t(Format: g123)\n")); 
+    printi(F("Add position\tp\t(Format: p)\n"));
+    printi(F("Clear array\tc\t(Format: c)\n"));
+    printi(F("Status\ts\t(Format: s)\n"));
+    printi(F("Set delay (ms)\td+string\t(Format: d123)\n")); 
+    printi(F("Set step increment (mm)\ti+str\t(Format: i123.4)\n")); 
+    printi(F("Set pulse increment (us)\tu+str\t(Format: u123.4)\n")); 
+    printi(F("Linear execute x times\te+str\t(Format: e123)\n"));
+    printi(F("Joint execute x times\tj+str\t(Format: j123)\n"));   
+    printi(F("Set joint delay (ms)\tU+str\t(Format: U123)\n"));  
+    printi(F("Step to the next position \t>\t(Format: >)\n"));  
+    printi(F("Step to the previous position \t<\t(Format: <)\n"));  
+    printi(F("Edit the current array position \tP\t(Format: P)\n"));  
+    printi(F("Add a delay to the current array position \tD+str\t(Format: D123\n"));  
+    printi(F("EEPROM: Set link 2\tL+str\t(Format: L123.4)\n"));  
+    printi(F("EEPROM: Set end effector type\tE+str\t(Format: E123)\n"));  
+    printi(F("EEPROM: Set Axis direction\tA+str\t(Format: A123)\n"));  
+    printi(F("EEPROM: Set X home position\tX+str\t(Format: X123.4)\n"));  
+    printi(F("EEPROM: Set Y home position\tY+str\t(Format: Y123.4)\n"));  
+    printi(F("EEPROM: Set Z home position\tZ+str\t(Format: Z123.4)\n"));     
+    printi(F("EEPROM: Set gripper home position\tG+str\t(Format: G123)\n"));  
+}
+
+/*------------------------------------------------------------------------------------------------------------------------------------------------------*/
+
+void print_moves_array(void){
+    printi(F("\n---Move Array---\n"));
+    for(int row = 0; row < moves_array_elements; row++){
+        printi(F("\n| X: "), moves_array[row][0], 3, F("\t"));
+        printi(F("Y: "), moves_array[row][1], 3, F("\t"));
+        printi(F("Z: "), moves_array[row][2], 3, F("\t"));
+        printi(F("G: "), moves_array[row][3], 3, F(" \t"));  
+        printi(F("D: "), (int)moves_array[row][4], F(" |\n"));    
+    }
+    printi(F("\n"));
+}
+
+/*------------------------------------------------------------------------------------------------------------------------------------------------------*/
+
+void print_eeprom(void){
+    printi(F("\n---Saved Values---\n\n"));
+    printi(F("Link 2 length: "), EEPROM.read(EEPROM_ADDRESS_LINK_2));
+    printi(F("End effector type: "), EEPROM.read(EEPROM_ADDRESS_END_EFFECTOR_TYPE));
+    printi(F("Axis Direction Inversion: "), EEPROM.read(EEPROM_ADDRESS_AXIS_DIRECTION));
+    printi(F("X Home: "), home_position.x);
+    printi(F("Y Home: "), home_position.y);
+    printi(F("Z Home: "), home_position.z);
+    printi(F("Gripper Home: "), gripper_home);
+    printi(F("Z offset: "), servo_offset_z);
+    printi(F("---------------------\n"));
 }
 
 /*------------------------------------------------------------------------------------------------------------------------------------------------------*/
@@ -380,22 +446,27 @@ void serialFlush(void){
 
 /*------------------------------------------------------------------------------------------------------------------------------------------------------*/
 
-void detach_servos(void){
+void detach_servos(void){//Stops the signals to the servos so they will not draw power to hold their positions.
     servo1.detach();
     servo2.detach();
     servo3.detach();
     servo4.detach();
+    digitalWrite(SERVO_1_PIN, LOW);
+    digitalWrite(SERVO_2_PIN, LOW);
+    digitalWrite(SERVO_3_PIN, LOW);
+    digitalWrite(SERVO_4_PIN, LOW);
 }
 
 /*------------------------------------------------------------------------------------------------------------------------------------------------------*/
 
 int add_position(void){
-    if(moves_array_index >= 0 && moves_array_index < ARRAY_LENGTH){
-        moves_array[moves_array_index][0] = end_effector.x;
-        moves_array[moves_array_index][1] = end_effector.y;
-        moves_array[moves_array_index][2] = end_effector.z;
-        moves_array[moves_array_index][3] = get_gripper_rotation();
-        moves_array_index++;//increment the index
+    if(moves_array_elements >= 0 && moves_array_elements < ARRAY_LENGTH){
+        moves_array[moves_array_elements][0] = end_effector.x;
+        moves_array[moves_array_elements][1] = end_effector.y;
+        moves_array[moves_array_elements][2] = end_effector.z;
+        moves_array[moves_array_elements][3] = get_gripper_rotation();
+        current_moves_array_index = moves_array_elements;
+        moves_array_elements++;//increment the index
         return 0;
     }
     return -1;
@@ -405,25 +476,27 @@ int add_position(void){
 
 void clear_array(void){
     for(int row = 0; row < ARRAY_LENGTH; row++){
-        for(int col = 0; col < 4; col++){
-            moves_array[row][col] = NULL;
+        for(int col = 0; col < 5; col++){
+            moves_array[row][col] = 0;
         }
     }
-    moves_array_index = 0;
+    moves_array_elements = 0;
+    current_moves_array_index = -1;
 }
 
 /*------------------------------------------------------------------------------------------------------------------------------------------------------*/
 
 void execute_moves(int repeat){
     for(int i = 0; i < repeat; i++){
-        for(int row = 0; row < moves_array_index; row++){
+        for(int row = 0; row < moves_array_elements; row++){
+            linear_move(moves_array[row][0], moves_array[row][1], moves_array[row][2], step_increment, step_delay_linear);
             gripper_servo(moves_array[row][3]);
-            linear_move(moves_array[row][0], moves_array[row][1], moves_array[row][2], step_increment, step_delay);
+            delay((int)moves_array[row][4]);
         }
         if(get_battery_level_voltage() < 9.5){//9.5V is used as the cut off to allow for inaccuracies and be on the safe side.
             delay(200);
             if(get_battery_level_voltage() < 9.5){//Check voltage is still low and the first wasn't a miscellaneous reading
-                printi("Battery low! Turn the power off.");
+                printi(F("Battery low! Turn the power off."));
                 detach_servos();
                 while(1){}//loop and do nothing
             }
@@ -435,9 +508,10 @@ void execute_moves(int repeat){
 
 void execute_moves_joint(int repeat){
     for(int i = 0; i < repeat; i++){
-        for(int row = 0; row < moves_array_index; row++){
+        for(int row = 0; row < moves_array_elements; row++){            
+            joint_move(moves_array[row][0], moves_array[row][1], moves_array[row][2], step_pulses, step_delay_joint);
             gripper_servo(moves_array[row][3]);
-            joint_move(moves_array[row][0], moves_array[row][1], moves_array[row][2], step_pulses, step_delay);
+            delay((int)moves_array[row][4]);
         }
         if(get_battery_level_voltage() < 9.5){//9.5V is used as the cut off to allow for inaccuracies and be on the safe side.
             delay(200);
@@ -451,6 +525,56 @@ void execute_moves_joint(int repeat){
 }
 
 /*------------------------------------------------------------------------------------------------------------------------------------------------------*/
+
+void goto_moves_array_index(int index){
+    if(index < moves_array_elements && index >= 0){
+        linear_move(moves_array[index][0], moves_array[index][1], moves_array[index][2], step_increment, step_delay_linear);
+        current_moves_array_index = index;
+    }
+}
+
+/*------------------------------------------------------------------------------------------------------------------------------------------------------*/
+
+void edit_moves_array_index(int index){
+    if(index >= 0 && index < moves_array_elements){
+        moves_array[index][0] = end_effector.x;
+        moves_array[index][1] = end_effector.y;
+        moves_array[index][2] = end_effector.z;
+        moves_array[index][3] = get_gripper_rotation();
+    }
+}
+
+/*------------------------------------------------------------------------------------------------------------------------------------------------------*/
+
+void add_delay(int index, int delayms){
+    if(index < moves_array_elements && index >= 0 && delayms > 0 && delayms <= 32767){
+        moves_array[index][4] = delayms;
+    }
+}
+
+/*------------------------------------------------------------------------------------------------------------------------------------------------------*/
+
+int get_moves_array_index(void){
+    return current_moves_array_index;
+}
+
+/*------------------------------------------------------------------------------------------------------------------------------------------------------*/
+
+void increment_moves_array_index(void){
+    if(current_moves_array_index < moves_array_elements - 1){
+        current_moves_array_index++;
+    }
+}
+/*------------------------------------------------------------------------------------------------------------------------------------------------------*/
+
+void decrement_moves_array_index(void){
+    if(current_moves_array_index > 0){
+        current_moves_array_index--;
+    }
+}
+
+/*------------------------------------------------------------------------------------------------------------------------------------------------------*/
+
 void set_step_increment(float stepIncrement){
     if(stepIncrement > 0 && stepIncrement < 250){//step increments must be positive and arbitrarily less than 250
         step_increment = stepIncrement;
@@ -459,14 +583,21 @@ void set_step_increment(float stepIncrement){
 
 /*------------------------------------------------------------------------------------------------------------------------------------------------------*/
 
-void set_step_delay(int stepDelay){
+void set_step_delay_linear(int stepDelay){
     if(stepDelay > 0 && stepDelay < 32,767){//step delay must be positive and 32,767ms
-        step_delay = stepDelay;
+        step_delay_linear = stepDelay;
     }
 }
 
 /*------------------------------------------------------------------------------------------------------------------------------------------------------*/
 
+void set_step_delay_joint(int stepDelay){
+    if(stepDelay > 0 && stepDelay <= 32767){//step delay must be positive and 32,767ms
+        step_delay_joint = stepDelay;
+    }
+}
+
+/*------------------------------------------------------------------------------------------------------------------------------------------------------*/
 void set_step_pulses(int stepPulseIncrement){
     if(stepPulseIncrement > 0 && stepPulseIncrement < 2000){//step pulse increments must be positive and arbitrarily less than 2000
         step_pulses = stepPulseIncrement;
@@ -511,3 +642,71 @@ int get_serial_int(void){ //TODO: The delay may need to be changed depending on 
 
 /*------------------------------------------------------------------------------------------------------------------------------------------------------*/
 
+void set_link_2_length(int len){
+    EEPROM.update(EEPROM_ADDRESS_LINK_2, len);
+}
+
+/*------------------------------------------------------------------------------------------------------------------------------------------------------*/
+
+void set_end_effector_type(int type){
+    if(type < 0 || type > 3) return;
+    EEPROM.update(EEPROM_ADDRESS_END_EFFECTOR_TYPE, type);
+}
+
+/*------------------------------------------------------------------------------------------------------------------------------------------------------*/
+
+void set_axis_direction(int dir){
+    if(dir == 0){
+        set_z_offset(SERVO_OFFSET_Z);
+        EEPROM.update(EEPROM_ADDRESS_AXIS_DIRECTION, dir);
+    }
+    else if(dir == 1){
+        set_z_offset(SERVO_OFFSET_Z_INVERTED);
+        EEPROM.update(EEPROM_ADDRESS_AXIS_DIRECTION, dir);
+    }
+}
+
+/*------------------------------------------------------------------------------------------------------------------------------------------------------*/
+
+void set_z_offset(float offset){
+    EEPROM.put(EEPROM_ADDRESS_Z_OFFSET, offset);
+}
+
+/*------------------------------------------------------------------------------------------------------------------------------------------------------*/
+
+void set_home_x(float x){
+    EEPROM.put(EEPROM_ADDRESS_HOME_X, x);
+}
+
+/*------------------------------------------------------------------------------------------------------------------------------------------------------*/
+
+void set_home_y(float y){
+    EEPROM.put(EEPROM_ADDRESS_HOME_Y, y);
+}
+
+/*------------------------------------------------------------------------------------------------------------------------------------------------------*/
+
+void set_home_z(float z){
+    EEPROM.put(EEPROM_ADDRESS_HOME_Z, z);
+}
+
+/*------------------------------------------------------------------------------------------------------------------------------------------------------*/
+
+
+void set_home_gripper(int val){
+    EEPROM.put(EEPROM_ADDRESS_HOME_GRIPPER, val);}
+
+/*------------------------------------------------------------------------------------------------------------------------------------------------------*/
+
+void set_eeprom_values(void){
+    link_2 = EEPROM.read(EEPROM_ADDRESS_LINK_2);
+    end_effector_type = EEPROM.read(EEPROM_ADDRESS_END_EFFECTOR_TYPE);
+    axis_direction = EEPROM.read(EEPROM_ADDRESS_AXIS_DIRECTION);
+    EEPROM.get(EEPROM_ADDRESS_HOME_X, home_position.x);
+    EEPROM.get(EEPROM_ADDRESS_HOME_Y, home_position.y);
+    EEPROM.get(EEPROM_ADDRESS_HOME_Z, home_position.z);
+    EEPROM.get(EEPROM_ADDRESS_HOME_GRIPPER, gripper_home);
+    EEPROM.get(EEPROM_ADDRESS_Z_OFFSET, servo_offset_z);
+}
+
+/*------------------------------------------------------------------------------------------------------------------------------------------------------*/

@@ -4,9 +4,9 @@
  * 
  * The code is developed for a Delta robot. The robot is controlled by an Arduino Nano.
  * 
- * Delta Robot STL files: 
+ * Delta Robot STL files: https://www.thingiverse.com/thing:3465651
  * 
- * Project video: 
+ * Project video: https://www.youtube.com/watch?v=vONuJPu1z3s
  * 
  * All measurements are in SI units unless otherwise specified.
  * 
@@ -20,22 +20,28 @@
  * Code written by isaac879
  *
  *--------------------------------------------------------------------------------------------------------------------------------------------------------*/
+//TODO:
+//Adjust kinematic limits. When the arms are very bent then it can rip itself apart...
 
 #include "deltaRobot.h"
 #include <Iibrary.h> //TODO: Add my custom library or remove dependant functions. Available at: https://github.com/isaac879/Iibrary
 
 /*------------------------------------------------------------------------------------------------------------------------------------------------------*/
 
-extern Coordinate end_effector;//Stores the end effector coordinates (declared in deltaRobot.cpp)
-
+extern Coordinate_f end_effector;//Stores the end effector coordinates (declared in deltaRobot.cpp)
+extern Coordinate_f home_position;
+extern int gripper_home;
 /*------------------------------------------------------------------------------------------------------------------------------------------------------*/
 
 void setup(){
     Serial.begin(57600); //TODO: Baud rate for the HC-05 module is 9600 by default so needs to be set to 57600 via AT commands to work.
+    set_eeprom_values();
     attach_servos();
-    inverse_kinematics(HOME_POSITION);
-    gripper_servo(0);
-    move_servos();
+    gripper_servo(gripper_home);
+    if(inverse_kinematics(home_position.x, home_position.y, home_position.z)){
+        move_servos();
+    }
+    clear_array();//initialise the moves array with 0s
 }
 
 /*------------------------------------------------------------------------------------------------------------------------------------------------------*/
@@ -45,7 +51,7 @@ void loop(){
         if(get_battery_level_voltage() < 9.5){//9.5V is used as the cut off to allow for inaccuracies and be on the safe side.
             delay(200);
             if(get_battery_level_voltage() < 9.5){//Check voltage is still low and the first wasn't a miscellaneous reading
-                printi("Battery low! Turn the power off.");
+                printi(F("Battery low! Turn the power off."));
                 detach_servos();
                 while(1){}//loop and do nothing
             }
@@ -140,7 +146,7 @@ void loop(){
         }
         break;
         case COMMAND_SET_STEP_DELAY:{           
-             set_step_delay(get_serial_int());
+             set_step_delay_linear(get_serial_int());
         }
         break;
         case COMMAND_SET_STEP_INCREMENT:{
@@ -155,8 +161,65 @@ void loop(){
             execute_moves_joint(get_serial_int());
         }
         break;
-        case COMMAND_SET_US_INCREMENT:{
+        case COMMAND_SET_US_INCREMENT_LINEAR:{
             set_step_pulses(get_serial_int());
+        }
+        break;
+        case COMMAND_SET_US_INCREMENT_JOINT:{
+            set_step_delay_joint(get_serial_int());
+        }
+        break;
+        case COMMAND_SET_LINK_2:{
+            set_link_2_length(get_serial_int());
+            set_eeprom_values();
+        }
+        break;
+        case COMMAND_SET_END_EFFECTOR_TYPE:{
+            set_end_effector_type(get_serial_int());
+            set_eeprom_values();
+        }
+        break;
+        case COMMAND_SET_AXIS_DIRECTION:{
+            set_axis_direction(get_serial_int());
+            set_eeprom_values();
+        }
+        break;
+        case COMMAND_SET_HOME_X:{
+            set_home_x(get_serial_int());
+            set_eeprom_values();
+        }
+        break;
+        case COMMAND_SET_HOME_Y:{
+            set_home_y(get_serial_int());
+            set_eeprom_values();
+        }
+        break;
+        case COMMAND_SET_HOME_Z:{
+            set_home_z(get_serial_int());
+            set_eeprom_values();
+        }
+        break;
+        case COMMAND_SET_HOME_GRIPPER:{
+            set_home_gripper(get_serial_int());
+            set_eeprom_values();
+        }
+        break;
+        case COMMAND_STEP_FORWARD:{
+            increment_moves_array_index();
+            goto_moves_array_index(get_moves_array_index());
+        }
+        break;
+        case COMMAND_STEP_BACKWARD:{
+            decrement_moves_array_index();
+            goto_moves_array_index(get_moves_array_index());
+        }
+        break;
+        case COMMAND_ADD_DELAY:{
+            add_delay(get_moves_array_index(), get_serial_int());
+        }
+        break;
+        case COMMAND_EDIT_ARRAY:{
+            edit_moves_array_index(get_moves_array_index());
         }
         break;
     }

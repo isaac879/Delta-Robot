@@ -12,6 +12,7 @@
 #define SERVO_OFFSET_X 75
 #define SERVO_OFFSET_Y 0
 #define SERVO_OFFSET_Z (41.231 + END_EFFECTOR_Z_OFFSET)
+#define SERVO_OFFSET_Z_INVERTED -293
 
 #define SERVO_ANGLE_MIN 0.78539816339744830961566084581988f //45 degrees
 #define SERVO_ANGLE_MAX 3.9269908169872415480783042290994f //225 degrees
@@ -35,14 +36,14 @@
 #define SERVO_4_MIN 540
 #define SERVO_4_MAX 2400
 
-#define HOME_POSITION 0, 0, 230 //x, y, z
-
 #define MAX_STRING_LENGTH 8 //Maxium number of chars that can be received with a command
 
+//Byte commands
 #define COMMAND_CARTESIAN 1
 #define COMMAND_ABSOLUTE_CARTESIAN 2
 #define COMMAND_GRIPPER 3
 
+//String commands
 #define COMMAND_JOG_X 'x'
 #define COMMAND_JOG_Y 'y'
 #define COMMAND_JOG_Z 'z'
@@ -55,11 +56,43 @@
 #define COMMAND_CLEAR_ARRAY 'c'
 #define COMMAND_EXECUTE 'e'
 #define COMMAND_EXECUTE_JOINT 'j'
-#define COMMAND_SET_US_INCREMENT 'u'
+#define COMMAND_SET_US_INCREMENT_LINEAR 'u'
+#define COMMAND_SET_US_INCREMENT_JOINT 'U'
+#define COMMAND_STEP_FORWARD '>'
+#define COMMAND_STEP_BACKWARD '<'
+#define COMMAND_EDIT_ARRAY 'P'
+#define COMMAND_ADD_DELAY 'D'
 
-#define ARRAY_LENGTH 50 //Maximum number of positions to store
+//EEPROM commands
+#define COMMAND_SET_LINK_2 'L'
+#define COMMAND_SET_END_EFFECTOR_TYPE 'E'
+#define COMMAND_SET_AXIS_DIRECTION 'A'
+#define COMMAND_SET_HOME_X 'X'
+#define COMMAND_SET_HOME_Y 'Y'
+#define COMMAND_SET_HOME_Z 'Z'
+#define COMMAND_SET_HOME_GRIPPER 'G'
+//#define COMMAND_PRINT_EEPROM 'P'
 
-#define FIRMWARE_VERSION "1.3.1"
+#define ARRAY_LENGTH 60 //Maximum number of positions to store
+
+#define EEPROM_ADDRESS_LINK_2 0
+#define EEPROM_ADDRESS_END_EFFECTOR_TYPE 1
+#define EEPROM_ADDRESS_AXIS_DIRECTION 2
+#define EEPROM_ADDRESS_Z_OFFSET 3
+#define EEPROM_ADDRESS_HOME_X 7
+#define EEPROM_ADDRESS_HOME_Y 11
+#define EEPROM_ADDRESS_HOME_Z 15
+#define EEPROM_ADDRESS_HOME_GRIPPER 19
+
+#define INVERTED -1
+
+#define FIRMWARE_VERSION F("2.0.2")
+
+struct Coordinate_f {
+    float x;
+    float y;
+    float z;
+};
 
 /*------------------------------------------------------------------------------------------------------------------------------------------------------*/
 
@@ -84,12 +117,30 @@ int add_position(void);
 void clear_array(void);
 void execute_moves(int);
 void set_step_increment(float);
-void set_step_delay(int);
+void set_step_delay_linear(int);
+void set_step_delay_joint(int);
 int get_gripper_rotation(void);
 float get_serial_float(void);
 int get_serial_int(void);
 void execute_moves_joint(int);
 void set_step_pulses(int);
+void set_link_2_length(int);
+void set_end_effector_type(int);
+void set_axis_direction(int);
+void set_z_offset(float);
+void set_home_x(float);
+void set_home_y(float);
+void set_home_z(float);
+void set_home_gripper(int);
+void set_eeprom_values(void);
+void print_eeprom(void);
+void print_moves_array(void);
+void goto_moves_array_index(int);
+void edit_moves_array_index(int);
+void add_delay(int, int);
+int get_moves_array_index(void);
+void increment_moves_array_index(void);
+void decrement_moves_array_index(void);
 
 /*------------------------------------------------------------------------------------------------------------------------------------------------------*/
 
