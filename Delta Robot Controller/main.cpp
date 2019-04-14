@@ -31,11 +31,19 @@
 #define COMMAND_JOG_Z 'z'
 #define COMMAND_GRIPPER_ASCII 'g'
 #define COMMAND_STATUS 's' 
+#define COMMAND_REPORT_COMMANDS 'r'
 #define COMMAND_ADD_POSITION 'p'
 #define COMMAND_SET_STEP_DELAY 'd'
 #define COMMAND_SET_STEP_INCREMENT 'i'
 #define COMMAND_CLEAR_ARRAY 'c'
 #define COMMAND_EXECUTE 'e'
+#define COMMAND_EXECUTE_JOINT 'j'
+#define COMMAND_SET_US_INCREMENT_LINEAR 'u'
+#define COMMAND_SET_US_INCREMENT_JOINT 'U'
+#define COMMAND_STEP_FORWARD '>'
+#define COMMAND_STEP_BACKWARD '<'
+#define COMMAND_EDIT_ARRAY 'P'
+#define COMMAND_ADD_DELAY 'D'
 
 //Flags
 bool portOpenFlag = false; //The flag used to determin if the serial port for the Arduino Nano is opened
@@ -202,10 +210,12 @@ int main(void){
 	}
 	else {
 		std::cout << "Error: Unable to open serial_port.txt" << std::endl;
+
 	}
 
 	serialConnect(strFile);//Connects to the com port that the Arduino is connected to.
 	//serialConnect("\\\\.\\com3");//Connects to com3
+
 	while(1) {
 		if (GetKeyState(VK_ESCAPE) & 0x8000) { //MSB is key state (1 if pressed). LSB is the toggle state
 			break;
@@ -215,8 +225,33 @@ int main(void){
 			std::cout << "p" << std::endl;
 			while(GetKeyState('P') & 0x8000){}
 		}
+		if (GetKeyState('O') & 0x8000) { //MSB is key state (1 if pressed). LSB is the toggle state
+			sendCommand(COMMAND_EDIT_ARRAY);
+			std::cout << "P" << std::endl;
+			while (GetKeyState('O') & 0x8000) {}
+		}
+		if (GetKeyState('5') & 0x8000) { //MSB is key state (1 if pressed). LSB is the toggle state
+			sendCharArray("D500");
+			while (GetKeyState('5') & 0x8000) {}
+		}
+		if (GetKeyState('1') & 0x8000) { //MSB is key state (1 if pressed). LSB is the toggle state
+			sendCharArray("D1000");
+			while (GetKeyState('1') & 0x8000) {}
+		}
+		if (GetKeyState('0') & 0x8000) { //MSB is key state (1 if pressed). LSB is the toggle state
+			sendCharArray("D5000");
+			while (GetKeyState('0') & 0x8000) {}
+		}
 		if (GetKeyState('C') & 0x8000) { //MSB is key state (1 if pressed). LSB is the toggle state
 			sendCommand(COMMAND_CLEAR_ARRAY);
+		}
+		if (GetKeyState(VK_DOWN) & 0x8000) { //MSB is key state (1 if pressed). LSB is the toggle state
+			sendCommand(COMMAND_STEP_FORWARD);
+			while (GetKeyState(VK_DOWN) & 0x8000) {}
+		}
+		if (GetKeyState(VK_UP) & 0x8000) { //MSB is key state (1 if pressed). LSB is the toggle state
+			sendCommand(COMMAND_STEP_BACKWARD);
+			while (GetKeyState(VK_UP) & 0x8000) {}
 		}
 		if (GetKeyState('E') & 0x8000) { //MSB is key state (1 if pressed). LSB is the toggle state
 			sendCharArray("e1");
@@ -244,12 +279,9 @@ int main(void){
 		if (GetKeyState('Z') & 0x8000) { //MSB is key state (1 if pressed). LSB is the toggle state
 			sendCharArray("z-1");
 		}
-		if (GetKeyState('O') & 0x8000) { //MSB is key state (1 if pressed). LSB is the toggle state
-			circle_xy(80, 1);
-		}
-		if ((GetKeyState(VK_LBUTTON) & 0x100) != 0 && (GetKeyState(VK_RBUTTON) & 0x100) != 0) {
-			break;
-		}
+		//if (GetKeyState('O') & 0x8000) { //MSB is key state (1 if pressed). LSB is the toggle state
+		//	circle_xy(80, 1);
+		//}
 		if (GetKeyState('B') & 0x8000) { //MSB is key state (1 if pressed). LSB is the toggle state
 			sendCharArray("g100");
 		}
@@ -260,11 +292,11 @@ int main(void){
 			sendCharArray("g-100");
 		}
 		if (GetKeyState('H') & 0x8000) { //MSB is key state (1 if pressed). LSB is the toggle state
-			sendCarteasian(COMMAND_ABSOLUTE_CARTESIAN, 0, 0, 110);
+			sendCarteasian(COMMAND_ABSOLUTE_CARTESIAN, 0, 0, 240);
 		}
-		if (GetKeyState(VK_SPACE) & 0x8000) { //MSB is key state (1 if pressed). LSB is the toggle state
-			jab(130, 200);
-		}
+		//if (GetKeyState(VK_SPACE) & 0x8000) { //MSB is key state (1 if pressed). LSB is the toggle state
+		//	jab(130, 200);
+		//}
 		if (GetCursorPos(&p)) {
 			if ((GetKeyState(VK_LBUTTON) & 0x100) != 0 && !click_flag) {
 				o.x = p.x;
@@ -284,11 +316,11 @@ int main(void){
 			if ((GetKeyState(VK_RBUTTON) & 0x100) != 0 && !g_click_flag) {//Toggles the gripper of the delta robot when right mouse button is clicked
 				g_click_flag = TRUE;
 				if ((GetKeyState(VK_RBUTTON) & 0x100) != 0 && g_flag) {
-					sendGripper(15);
+					sendGripper(60);
 					g_flag = !g_flag;
 				}
 				else if ((GetKeyState(VK_RBUTTON) & 0x100) != 0 && !g_flag) {
-					sendGripper(0);
+					sendGripper(-90);
 					g_flag = !g_flag;
 				}
 			}
