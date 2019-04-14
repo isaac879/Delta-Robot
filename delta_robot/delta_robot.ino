@@ -22,6 +22,8 @@
  *--------------------------------------------------------------------------------------------------------------------------------------------------------*/
 //TODO:
 //Adjust kinematic limits. When the arms are very bent then it can rip itself apart...
+//moves array should be an array of structs keeping all the smallest data types...
+//Send the moves array back at a pc and save to a text file that can later be sent back to it.
 
 #include "deltaRobot.h"
 #include <Iibrary.h> //TODO: Add my custom library or remove dependant functions. Available at: https://github.com/isaac879/Iibrary
@@ -31,6 +33,7 @@
 extern Coordinate_f end_effector;//Stores the end effector coordinates (declared in deltaRobot.cpp)
 extern Coordinate_f home_position;
 extern int gripper_home;
+
 /*------------------------------------------------------------------------------------------------------------------------------------------------------*/
 
 void setup(){
@@ -214,12 +217,24 @@ void loop(){
             goto_moves_array_index(get_moves_array_index());
         }
         break;
+        case COMMAND_JUMP_TO_START:{
+            goto_moves_array_start();
+        }
+        break;
+        case COMMAND_JUMP_TO_END:{
+            goto_moves_array_end();
+        }
+        break;
         case COMMAND_ADD_DELAY:{
             add_delay(get_moves_array_index(), get_serial_int());
         }
         break;
         case COMMAND_EDIT_ARRAY:{
             edit_moves_array_index(get_moves_array_index());
+        }
+        break;
+        case COMMAND_MOVE_HOME:{
+            move_home();
         }
         break;
     }

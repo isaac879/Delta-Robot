@@ -328,6 +328,13 @@ void gripper_servo(char rotation){ //The gripper servo has been modified for con
 
 /*------------------------------------------------------------------------------------------------------------------------------------------------------*/
 
+void position_gripper_servo(char rotation){
+    gripper_servo(rotation);
+    servo4.writeMicroseconds(servo_4_pulse_count);
+}
+
+/*------------------------------------------------------------------------------------------------------------------------------------------------------*/
+
 float get_battery_level_percentage(void){ //TODO: Calibrate the values for your battery
     return boundFloat(mapNumber(analogRead(BATTERY_PIN), 780, 1023, 0, 100), 0, 100); //780 = 9V = 0%, 1023 = 12.6V = 100%
 }
@@ -412,7 +419,8 @@ void report_commands(void){
 void print_moves_array(void){
     printi(F("\n---Move Array---\n"));
     for(int row = 0; row < moves_array_elements; row++){
-        printi(F("\n| X: "), moves_array[row][0], 3, F("\t"));
+        printi(F("\n"), row, F(" |"));
+        printi(F(" X: "), moves_array[row][0], 3, F("\t"));
         printi(F("Y: "), moves_array[row][1], 3, F("\t"));
         printi(F("Z: "), moves_array[row][2], 3, F("\t"));
         printi(F("G: "), moves_array[row][3], 3, F(" \t"));  
@@ -490,7 +498,7 @@ void execute_moves(int repeat){
     for(int i = 0; i < repeat; i++){
         for(int row = 0; row < moves_array_elements; row++){
             linear_move(moves_array[row][0], moves_array[row][1], moves_array[row][2], step_increment, step_delay_linear);
-            gripper_servo(moves_array[row][3]);
+            position_gripper_servo((char)moves_array[row][3]);
             delay((int)moves_array[row][4]);
         }
         if(get_battery_level_voltage() < 9.5){//9.5V is used as the cut off to allow for inaccuracies and be on the safe side.
@@ -510,7 +518,7 @@ void execute_moves_joint(int repeat){
     for(int i = 0; i < repeat; i++){
         for(int row = 0; row < moves_array_elements; row++){            
             joint_move(moves_array[row][0], moves_array[row][1], moves_array[row][2], step_pulses, step_delay_joint);
-            gripper_servo(moves_array[row][3]);
+            position_gripper_servo((char)moves_array[row][3]);
             delay((int)moves_array[row][4]);
         }
         if(get_battery_level_voltage() < 9.5){//9.5V is used as the cut off to allow for inaccuracies and be on the safe side.
@@ -529,7 +537,26 @@ void execute_moves_joint(int repeat){
 void goto_moves_array_index(int index){
     if(index < moves_array_elements && index >= 0){
         linear_move(moves_array[index][0], moves_array[index][1], moves_array[index][2], step_increment, step_delay_linear);
+        position_gripper_servo((char)moves_array[index][3]);
         current_moves_array_index = index;
+    }
+}
+
+/*------------------------------------------------------------------------------------------------------------------------------------------------------*/
+
+void goto_moves_array_start(void){
+    linear_move(moves_array[0][0], moves_array[0][1], moves_array[0][2], step_increment, step_delay_linear);
+    position_gripper_servo((char)moves_array[0][3]);
+    current_moves_array_index = 0;
+}
+
+/*------------------------------------------------------------------------------------------------------------------------------------------------------*/
+
+void goto_moves_array_end(void){
+    if(0 < moves_array_elements){
+        linear_move(moves_array[moves_array_elements - 1][0], moves_array[moves_array_elements - 1][1], moves_array[moves_array_elements - 1][2], step_increment, step_delay_linear);
+        position_gripper_servo((char)moves_array[moves_array_elements - 1][3]);
+        current_moves_array_index = moves_array_elements - 1;
     }
 }
 
@@ -710,3 +737,10 @@ void set_eeprom_values(void){
 }
 
 /*------------------------------------------------------------------------------------------------------------------------------------------------------*/
+
+void move_home(void){
+    linear_move(home_position.x, home_position.y, home_position.z, step_increment, step_delay_linear);
+}
+
+/*------------------------------------------------------------------------------------------------------------------------------------------------------*/
+

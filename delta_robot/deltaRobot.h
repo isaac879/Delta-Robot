@@ -60,8 +60,11 @@
 #define COMMAND_SET_US_INCREMENT_JOINT 'U'
 #define COMMAND_STEP_FORWARD '>'
 #define COMMAND_STEP_BACKWARD '<'
+#define COMMAND_JUMP_TO_START '['
+#define COMMAND_JUMP_TO_END ']'
 #define COMMAND_EDIT_ARRAY 'P'
 #define COMMAND_ADD_DELAY 'D'
+#define COMMAND_MOVE_HOME 'h'
 
 //EEPROM commands
 #define COMMAND_SET_LINK_2 'L'
@@ -86,7 +89,7 @@
 
 #define INVERTED -1
 
-#define FIRMWARE_VERSION F("2.0.2")
+#define FIRMWARE_VERSION F("2.1.0")
 
 struct Coordinate_f {
     float x;
@@ -141,6 +144,10 @@ void add_delay(int, int);
 int get_moves_array_index(void);
 void increment_moves_array_index(void);
 void decrement_moves_array_index(void);
+void position_gripper_servo(char);
+void move_home(void);
+void goto_moves_array_start(void);
+void goto_moves_array_end(void);
 
 /*------------------------------------------------------------------------------------------------------------------------------------------------------*/
 
