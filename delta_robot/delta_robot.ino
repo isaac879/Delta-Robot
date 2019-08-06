@@ -21,9 +21,7 @@
  *
  *--------------------------------------------------------------------------------------------------------------------------------------------------------*/
 //TODO:
-//Adjust kinematic limits. When the arms are very bent then it can rip itself apart...
-//moves array should be an array of structs keeping all the smallest data types...
-//Send the moves array back at a pc and save to a text file that can later be sent back to it.
+//IMPORTANT: When the robot is first turned on after having the code uploaded you may need to set all the EEPROM values be for it will work, then switch it off and on again.
 
 #include "deltaRobot.h"
 #include <Iibrary.h> //TODO: Add my custom library or remove dependant functions. Available at: https://github.com/isaac879/Iibrary
@@ -207,6 +205,14 @@ void loop(){
             set_eeprom_values();
         }
         break;
+        case COMMAND_SET_GRIPPER_MIN_MAX:{
+            delay(2);
+            char gripperType = (char)Serial.read() - '0';
+            char min_max = Serial.read();
+            set_gripper_min_max(gripperType, min_max, get_serial_int());
+            set_eeprom_values();
+        }
+        break;
         case COMMAND_STEP_FORWARD:{
             increment_moves_array_index();
             goto_moves_array_index(get_moves_array_index());
@@ -241,4 +247,3 @@ void loop(){
 }
 
 /*------------------------------------------------------------------------------------------------------------------------------------------------------*/
-

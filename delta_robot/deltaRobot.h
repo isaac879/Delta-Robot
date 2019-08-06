@@ -17,6 +17,9 @@
 #define SERVO_ANGLE_MIN 0.78539816339744830961566084581988f //45 degrees
 #define SERVO_ANGLE_MAX 3.9269908169872415480783042290994f //225 degrees
 
+#define MIN 'm'
+#define MAX 'M'
+
 //Pins the servos are connected to
 #define SERVO_1_PIN 9
 #define SERVO_2_PIN 10
@@ -74,10 +77,12 @@
 #define COMMAND_SET_HOME_Y 'Y'
 #define COMMAND_SET_HOME_Z 'Z'
 #define COMMAND_SET_HOME_GRIPPER 'G'
+#define COMMAND_SET_GRIPPER_MIN_MAX 'M'
 //#define COMMAND_PRINT_EEPROM 'P'
 
-#define ARRAY_LENGTH 60 //Maximum number of positions to store
+#define ARRAY_LENGTH 80 //Maximum number of positions to store
 
+//EEPROM addresses for the delta robots configuration
 #define EEPROM_ADDRESS_LINK_2 0
 #define EEPROM_ADDRESS_END_EFFECTOR_TYPE 1
 #define EEPROM_ADDRESS_AXIS_DIRECTION 2
@@ -86,15 +91,35 @@
 #define EEPROM_ADDRESS_HOME_Y 11
 #define EEPROM_ADDRESS_HOME_Z 15
 #define EEPROM_ADDRESS_HOME_GRIPPER 19
+#define EEPROM_ADDRESS_GRIPPER_ROTATION_MIN 21
+#define EEPROM_ADDRESS_GRIPPER_ROTATION_MAX 23
+#define EEPROM_ADDRESS_GRIPPER_CLAW_MIN 25
+#define EEPROM_ADDRESS_GRIPPER_CLAW_MAX 27
+#define EEPROM_ADDRESS_GRIPPER_VACUUM_MIN 29
+#define EEPROM_ADDRESS_GRIPPER_VACUUM_MAX 31
+
+#define NONE 0
+#define CONTINUOUS_ROTATION 1
+#define CLAW_GRIPPER 2
+#define VACUUM_GRIPPER 3
+#define ELECTROMAGNET 4
 
 #define INVERTED -1
 
-#define FIRMWARE_VERSION F("2.1.0")
+#define FIRMWARE_VERSION F("2.2.0")
 
 struct Coordinate_f {
     float x;
     float y;
     float z;
+};
+
+struct Program_element {
+    float x = 0;
+    float y = 0;
+    float z = 0;
+    char gripper = 0;
+    int delay_ms = 0;
 };
 
 /*------------------------------------------------------------------------------------------------------------------------------------------------------*/
@@ -135,6 +160,7 @@ void set_home_x(float);
 void set_home_y(float);
 void set_home_z(float);
 void set_home_gripper(int);
+void set_gripper_min_max(char, char, int);
 void set_eeprom_values(void);
 void print_eeprom(void);
 void print_moves_array(void);
@@ -148,6 +174,7 @@ void position_gripper_servo(char);
 void move_home(void);
 void goto_moves_array_start(void);
 void goto_moves_array_end(void);
+
 
 /*------------------------------------------------------------------------------------------------------------------------------------------------------*/
 
