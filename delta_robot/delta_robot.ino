@@ -5,8 +5,10 @@
  * The code is developed for a Delta robot. The robot is controlled by an Arduino Nano.
  * 
  * Delta Robot STL files: https://www.thingiverse.com/thing:3465651
+ *                        https://www.thingiverse.com/thing:3652714
  * 
- * Project video: https://www.youtube.com/watch?v=vONuJPu1z3s
+ * Project videos: https://youtu.be/vONuJPu1z3s
+ *                 https://youtu.be/bfRIsF71XhE
  * 
  * All measurements are in SI units unless otherwise specified.
  * 
@@ -22,6 +24,10 @@
  *--------------------------------------------------------------------------------------------------------------------------------------------------------*/
 //TODO:
 //IMPORTANT: When the robot is first turned on after having the code uploaded you may need to set all the EEPROM values be for it will work, then switch it off and on again.
+
+//fix axis directions... Somehow x seemed to be inverted... (Tt functions perfectly except inverted.)
+
+//Adjust kinematic limits. When the arms are very bent then it can rip itself apart...
 
 #include "deltaRobot.h"
 #include <Iibrary.h> //TODO: Add my custom library or remove dependant functions. Available at: https://github.com/isaac879/Iibrary
@@ -97,6 +103,23 @@ void loop(){
             move_servos();//Moves the robot's servos
         }
         break;
+        case COMMAND_ABSOLUTE_CARTESIAN_LINEAR:{//Moves to the specified position
+            while(Serial.available() != 6){//Wait for six bytes to be available. Breaks after ~200ms if bytes are not received.
+                delayMicroseconds(200); 
+                count++;
+                if(count > 1000){
+                    serialFlush();//Clear the serial buffer
+                    break;   
+                }
+            }
+            int xTarget = (Serial.read() << 8) + Serial.read();  
+            int yTarget = (Serial.read() << 8) + Serial.read(); 
+            int zTarget = (Serial.read() << 8) + Serial.read(); 
+         
+            linear_move(xTarget, yTarget, zTarget, get_step_increment(), get_step_delay_linear());//Calculates servo positions 
+            send_ready_flag();
+        }
+        break;
         case COMMAND_STATUS:{
             report_status();
         }
@@ -160,6 +183,10 @@ void loop(){
         break;
         case COMMAND_EXECUTE_JOINT:{
             execute_moves_joint(get_serial_int());
+        }
+        break;
+        case COMMAND_EXECUTE_TIME:{
+            execute_moves_time(get_serial_int());
         }
         break;
         case COMMAND_SET_US_INCREMENT_LINEAR:{
@@ -241,6 +268,36 @@ void loop(){
         break;
         case COMMAND_MOVE_HOME:{
             move_home();
+        }
+        break;
+        case COMMAND_PRINT_FILE:{
+            print_moves_array_for_file();
+        }
+        break;
+        case COMMAND_PING_PONG:{
+            ping_pong();
+        }
+        break;
+        case COMMAND_SET_PROGRAM_ARRAY:{
+            set_program_array();
+        }
+        break;
+        case COMMAND_SERVO_CALIBRATION:{
+            servo_calibration_test(get_serial_int());   
+        }
+        break;
+        case COMMAND_SET_SERVO:{
+            delay(2);
+            char sn = Serial.read();
+            String s = "";
+            s += sn;
+            int servoNum = s.toInt();
+            int pc = get_serial_int();
+            set_servos_pulse(servoNum, pc);
+        }
+        break;
+        case COMMAND_REQUEST_READY_FLAG:{
+            send_ready_flag();
         }
         break;
     }
