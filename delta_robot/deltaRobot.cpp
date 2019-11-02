@@ -38,7 +38,7 @@ String stringText = "";
 
 byte link_2 = L2;//Default value of link 2
 byte end_effector_type = NONE;
-byte axis_direction = 0;                             
+byte axis_direction = 1;                             
 float servo_offset_z = SERVO_OFFSET_Z;
 int gripper_home = 0;
 int gripper_servo_min = SERVO_4_MIN;//Default values
@@ -67,29 +67,29 @@ void attach_servos(void){
 /*------------------------------------------------------------------------------------------------------------------------------------------------------*/
 
 bool inverse_kinematics_1(float xt, float yt, float zt){
-    zt -= servo_offset_z;
+    zt -= servo_offset_z; //Remove the differance in height from ground level to the centre of rotation of the servos
     
-    float arm_end_x = xt + L3;
-    float l2p = sqrt(pow(link_2, 2) - pow(yt, 2));
+    float arm_end_x = xt + L3; //Adding the distance between the end effector centre and ball joints to the target x coordinate
+    float l2p = sqrt(pow(link_2, 2) - pow(yt, 2)); //The length of link 2 when projected onto the XZ plane
     
-    float l2pAngle = asin(yt / link_2);
-    if(!(abs(l2pAngle) < 0.59341194567807205615405486128613f)){ //Prevents the angle between the ball joints and link 2 (L2) going out of range.
+    float l2pAngle = asin(yt / link_2); //Gives the angle between link2 and the ball joints. (Not actually necessary to calculate the inverse kinematics. Just used to prevent the arms ripping themselves apart.)
+    if(!(abs(l2pAngle) < 0.59341194567807205615405486128613f)){ //Prevents the angle between the ball joints and link 2 (L2) going out of range. (Angle was determined by emprical testing.)
 //        printi("ERROR: Ball joint 1 out of range: l2pAngle = ", radsToDeg(l2pAngle));
         return false;
     }
 
-    float ext = sqrt(pow (zt, 2) + pow(SERVO_OFFSET_X - arm_end_x, 2));
+    float ext = sqrt(pow (zt, 2) + pow(SERVO_OFFSET_X - arm_end_x, 2)); //Extension of the arm from the centre of the servo rotation to the end ball joint of link2
 
-    if(ext <= l2p - L1 || ext >= L1 + l2p){ //This limit assumes that L2 is greater than L1
+    if(ext <= l2p - L1 || ext >= L1 + l2p){ //Checks the extension in the reachable range (This limit assumes that L2 is greater than L1)
 //       printi("ERROR: Extension 1 out of range: ext = ", ext);
         return false;
     }
        
-    float phi = acos((pow(L1, 2) + pow(ext, 2) - pow(l2p, 2)) / (2 * L1 * ext));
-    float omega = atan2(zt, SERVO_OFFSET_X - arm_end_x);
-    float theta = phi + omega;
+    float phi = acos((pow(L1, 2) + pow(ext, 2) - pow(l2p, 2)) / (2 * L1 * ext)); //Cosine rule that calculates the angle between the ext line and L1
+    float omega = atan2(zt, SERVO_OFFSET_X - arm_end_x); //Calculates the angle between horizontal (X) the ext line with respect to its quadrant
+    float theta = phi + omega; //Theta is the angle between horizontal (X) and L1
 
-    if(!(theta >= SERVO_ANGLE_MIN && theta <= SERVO_ANGLE_MAX)){
+    if(!(theta >= SERVO_ANGLE_MIN && theta <= SERVO_ANGLE_MAX)){ //Checks the angle is in the reachable range
 //        printi("ERROR: Servo angle 1 out of range: Angle = ", radsToDeg(theta));
         return false;
     }
@@ -183,7 +183,7 @@ bool inverse_kinematics(float xt, float yt, float zt){
         zt = -zt;
     }
     
-    if(inverse_kinematics_1(xt, yt, zt) && inverse_kinematics_2(xt, yt, zt) && inverse_kinematics_3(xt, yt, zt)){ //Calculates checks the positions are valid.
+    if(inverse_kinematics_1(xt, yt, zt) && inverse_kinematics_2(xt, yt, zt) && inverse_kinematics_3(xt, yt, zt)){ //Calculates and checks the positions are valid.
         if(axis_direction == 1){//if axis are inverted
             end_effector.x = -xt;
             end_effector.z = -zt;
@@ -419,12 +419,14 @@ void report_status(){
 
 void report_commands(void){
     printi(F("\n---Delta robot commands---\n\n"));
+    printi(F("Ping! Pong!\to\t(Format: o)\n"));
     printi(F("Cartesian\t0x1+6 bytes\t(Format: 1xxyyzz)\n"));
     printi(F("Abslute cartesian\t0x2+6 bytes\t(Format: 2xxyyzz)\n"));
     printi(F("Gripper\t0x3+1 byte\t(Format: 3b)\n")); 
     printi(F("Jog X-axis\tx+str\t(Format: x123.4)\n"));
     printi(F("Jog Y-axis\ty+str\t(Format: y123.4)\n"));
     printi(F("Jog Z-axis\tz+str\t(Format: z123.4)\n"));
+    printi(F("Move to the home position\th\t(Format: h)\n"));
     printi(F("Gripper ascii\tg+str\t(Format: g123)\n")); 
     printi(F("Add position\tp\t(Format: p)\n"));
     printi(F("Clear array\tc\t(Format: c)\n"));
@@ -433,10 +435,13 @@ void report_commands(void){
     printi(F("Set step increment (mm)\ti+str\t(Format: i123.4)\n")); 
     printi(F("Set pulse increment (us)\tu+str\t(Format: u123.4)\n")); 
     printi(F("Linear execute x times\te+str\t(Format: e123)\n"));
-    printi(F("Joint execute x times\tj+str\t(Format: j123)\n"));   
+    printi(F("Joint execute x times\tj+str\t(Format: j123)\n")); 
+    printi(F("Execute for x seconds\tt+str\t(Format: t123)\n"));  
     printi(F("Set joint delay (ms)\tU+str\t(Format: U123)\n"));  
     printi(F("Step to the next position \t>\t(Format: >)\n"));  
-    printi(F("Step to the previous position \t<\t(Format: <)\n"));  
+    printi(F("Step to the previous position\t<\t(Format: <)\n"));
+    printi(F("Go to start position\t[\t(Format: [)\n"));
+    printi(F("Go to end position\t]\t(Format: ])\n"));   
     printi(F("Edit the current array position \tP\t(Format: P)\n"));  
     printi(F("Add a delay to the current array position \tD+str\t(Format: D123\n"));  
     printi(F("EEPROM: Set link 2\tL+str\t(Format: L123.4)\n"));  
@@ -446,7 +451,7 @@ void report_commands(void){
     printi(F("EEPROM: Set Y home position\tY+str\t(Format: Y123.4)\n"));  
     printi(F("EEPROM: Set Z home position\tZ+str\t(Format: Z123.4)\n"));     
     printi(F("EEPROM: Set gripper home position\tG+str\t(Format: G123)\n"));
-    printi(F("EEPROM: Set gripper servo\tM+str+m(min) or M(max)+str\t(Format: M1m123)\n"));           
+    printi(F("EEPROM: Set gripper servo\tM+str+m(min) or M(max)+str\t(Format: M1m123)\n"));
 }
 
 /*------------------------------------------------------------------------------------------------------------------------------------------------------*/
@@ -458,8 +463,21 @@ void print_moves_array(void){
         printi(F(" X: "), program_elements[row].x, 3, F("\t"));
         printi(F("Y: "), program_elements[row].y, 3, F("\t"));
         printi(F("Z: "), program_elements[row].z, 3, F("\t"));
-        printi(F("G: "), program_elements[row].gripper, F(" \t"));  
+        printi(F("G: "), (int)program_elements[row].gripper, F(" \t"));  
         printi(F("D: "), program_elements[row].delay_ms, F(" |\n"));    
+    }
+    printi(F("\n"));
+}
+
+/*------------------------------------------------------------------------------------------------------------------------------------------------------*/
+
+void print_moves_array_for_file(void){
+    for(int row = 0; row < moves_array_elements; row++){
+        printi((int)program_elements[row].x, F(", "));
+        printi((int)program_elements[row].y, F(", "));
+        printi((int)program_elements[row].z, F(", "));
+        printi((int)program_elements[row].gripper, F(", "));  
+        printi((int)program_elements[row].delay_ms, F("\n"));    
     }
     printi(F("\n"));
 }
@@ -469,7 +487,31 @@ void print_moves_array(void){
 void print_eeprom(void){
     printi(F("\n---Saved Values---\n\n"));
     printi(F("Link 2 length: "), EEPROM.read(EEPROM_ADDRESS_LINK_2));
-    printi(F("End effector type: "), EEPROM.read(EEPROM_ADDRESS_END_EFFECTOR_TYPE));
+    printi(F("End effector type: "));
+    switch(EEPROM.read(EEPROM_ADDRESS_END_EFFECTOR_TYPE)){
+        case NONE:{
+            printi(F("None\n"));
+        }
+        break;
+        case CONTINUOUS_ROTATION:{
+            printi(F("Continuous Rotation\n"));
+        }
+        break;
+        case CLAW_GRIPPER:{
+            printi(F("Claw Gripper\n"));
+        }
+        break;
+        case VACUUM_GRIPPER:{
+            printi(F("Vacuum Gripper\n"));
+        }
+        break;
+        case ELECTROMAGNET:{
+            printi(F("Electromagnet\n"));
+        }
+        break;
+        default:
+            printi(F("Error: Invalid type: "), EEPROM.read(EEPROM_ADDRESS_END_EFFECTOR_TYPE)); 
+    }
     printi(F("Axis Direction Inversion: "), EEPROM.read(EEPROM_ADDRESS_AXIS_DIRECTION));
 
     int temp;
@@ -845,6 +887,144 @@ void set_eeprom_values(void){
 
 void move_home(void){
     linear_move(home_position.x, home_position.y, home_position.z, step_increment, step_delay_linear);
+}
+
+/*------------------------------------------------------------------------------------------------------------------------------------------------------*/
+
+float get_step_increment(void){
+    return step_increment;
+}
+
+/*------------------------------------------------------------------------------------------------------------------------------------------------------*/
+
+float get_step_delay_linear(void){
+    return step_delay_linear;
+}
+
+/*------------------------------------------------------------------------------------------------------------------------------------------------------*/
+
+void ping_pong(void){
+    Serial.print(F("Pong!\n"));
+}
+
+/*------------------------------------------------------------------------------------------------------------------------------------------------------*/
+
+void send_ready_flag(void){
+    Serial.print(READY_FLAG);
+}
+
+/*------------------------------------------------------------------------------------------------------------------------------------------------------*/
+
+int set_program_array(void){
+    clear_array();//clears the program_elements array
+
+    send_ready_flag();
+    
+    while(1){
+        int timeOut = 0;
+        while(Serial.available() < 9){//Wait for 9 bytes to be available. Breaks after ~1000ms if bytes are not received.
+            delayMicroseconds(1000); 
+            timeOut++;
+            if(timeOut > 1000){
+                serialFlush();//Clear the serial buffer
+                return 0; 
+            }
+        }
+
+        float x = (Serial.read() << 8) + Serial.read();
+        float y = (Serial.read() << 8) + Serial.read();
+        float z = (Serial.read() << 8) + Serial.read();
+        char gripper = Serial.read();
+        int ms = (Serial.read() << 8) + Serial.read();
+        
+        if(moves_array_elements >= 0 && moves_array_elements < ARRAY_LENGTH){
+            program_elements[moves_array_elements].x = x;
+            program_elements[moves_array_elements].y = y;
+            program_elements[moves_array_elements].z = z;
+            program_elements[moves_array_elements].gripper = gripper;
+            program_elements[moves_array_elements].delay_ms = ms;
+            current_moves_array_index = moves_array_elements;
+            moves_array_elements++;//increment the index
+        }
+        else{
+            return -1;
+        }
+        //delay(5);
+        send_ready_flag();
+    }
+}
+
+/*------------------------------------------------------------------------------------------------------------------------------------------------------*/
+
+void servo_calibration_test(int number){
+
+    if(number == 1){
+        servo_1_pulse_count = SERVO_1_MIN;
+        servo_2_pulse_count = SERVO_2_MIN;
+        servo_3_pulse_count = SERVO_3_MIN;
+    }
+    else if(number == 2){
+        servo_1_pulse_count = SERVO_1_MAX;
+        servo_2_pulse_count = SERVO_2_MAX;
+        servo_3_pulse_count = SERVO_3_MAX;
+    }
+    else if(number == 3){
+        servo_1_pulse_count = round(mapNumber(degToRads(90), SERVO_ANGLE_MIN, SERVO_ANGLE_MAX, SERVO_1_MAX, SERVO_1_MIN));
+        servo_2_pulse_count = round(mapNumber(degToRads(90), SERVO_ANGLE_MIN, SERVO_ANGLE_MAX, SERVO_2_MAX, SERVO_2_MIN));
+        servo_3_pulse_count = round(mapNumber(degToRads(90), SERVO_ANGLE_MIN, SERVO_ANGLE_MAX, SERVO_3_MAX, SERVO_3_MIN));
+    }
+    else if(number == 4){
+        servo_1_pulse_count = round(mapNumber(degToRads(180), SERVO_ANGLE_MIN, SERVO_ANGLE_MAX, SERVO_1_MAX, SERVO_1_MIN));
+        servo_2_pulse_count = round(mapNumber(degToRads(180), SERVO_ANGLE_MIN, SERVO_ANGLE_MAX, SERVO_2_MAX, SERVO_2_MIN));
+        servo_3_pulse_count = round(mapNumber(degToRads(180), SERVO_ANGLE_MIN, SERVO_ANGLE_MAX, SERVO_3_MAX, SERVO_3_MIN));
+    }
+    move_servos();
+    
+    printi(F("\nServo 1 pulses:\t"), servo_1_pulse_count);
+    printi(F("Servo 2 pulses:\t"), servo_2_pulse_count);
+    printi(F("Servo 3 pulses:\t"), servo_3_pulse_count);
+    printi(F("\n\n"));
+}
+
+/*------------------------------------------------------------------------------------------------------------------------------------------------------*/
+
+void set_servos_pulse(int servoNum, int pulseCount){
+    if(servoNum == 1){
+        
+        servo_1_pulse_count = pulseCount;
+        //servo1.attach(SERVO_1_PIN, );
+    }
+    else if(servoNum == 2){
+        servo_2_pulse_count = pulseCount;
+    }
+    else if(servoNum == 3){
+        servo_3_pulse_count = pulseCount;
+    }
+    move_servos();
+    printi(F("\nServo "), servoNum, "");
+    printi(F(" pulses:\t"), pulseCount);
+    printi(F("\n\n"));
+}
+
+/*------------------------------------------------------------------------------------------------------------------------------------------------------*/
+
+void execute_moves_time(unsigned long executeTimeSeconds){ //Will continue to execute the program array until the time limit has been exceeded
+    unsigned long startTime = millis();
+    while(millis() - startTime <= executeTimeSeconds * 1000){
+        for(int row = 0; row < moves_array_elements; row++){
+            linear_move(program_elements[row].x, program_elements[row].y, program_elements[row].z, step_increment, step_delay_linear);
+            position_gripper_servo(program_elements[row].gripper);
+            delay(program_elements[row].delay_ms);
+        }
+        if(get_battery_level_voltage() < 9.5){//9.5V is used as the cut off to allow for inaccuracies and be on the safe side.
+            delay(200);
+            if(get_battery_level_voltage() < 9.5){//Check voltage is still low and the first wasn't a miscellaneous reading
+                printi(F("Battery low! Turn the power off."));
+                detach_servos();
+                while(1){}//loop and do nothing
+            }
+        }    
+    }
 }
 
 /*------------------------------------------------------------------------------------------------------------------------------------------------------*/
